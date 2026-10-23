@@ -71,7 +71,7 @@ export default function App() {
   const [lembrarAcesso, setLembrarAcesso] = useState(true);
 
   // Estados principais
-  const [abaAtiva, setAbaAtiva] = useState<'pedidos' | 'venda_manual' | 'whatsapp' | 'logs_auditoria' | 'configuracoes'>('pedidos');
+  const [abaAtiva, setAbaAtiva] = useState<'pedidos' | 'venda_manual' | 'whatsapp' | 'logs_auditoria' | 'configuracoes'>('venda_manual');
   const [cotas, setCotas] = useState<Cota[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [carregando, setCarregando] = useState(false);
