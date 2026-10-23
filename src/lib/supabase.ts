@@ -191,18 +191,18 @@ export async function atualizarStatusPedido(
     try {
       await client
         .from('pedidos')
-        .update({ status_pagamento: novoStatus, updated_at: new Date().toISOString() })
+        .update({ status_pagamento: novoStatus })
         .eq('id', pedidoId);
 
       if (novoStatus === 'pago') {
         await client
           .from('cotas')
-          .update({ status: 'pago', updated_at: new Date().toISOString() })
+          .update({ status: 'pago' })
           .eq('pedido_id', pedidoId);
       } else if (novoStatus === 'cancelado') {
         await client
           .from('cotas')
-          .update({ status: 'disponivel', pedido_id: null, updated_at: new Date().toISOString() })
+          .update({ status: 'disponivel', pedido_id: null })
           .eq('pedido_id', pedidoId);
       }
     } catch (e) {
@@ -258,7 +258,7 @@ export async function criarPedidoManualAdmin(params: {
   cotasNumeros: number[];
   formaPagamento: 'dinheiro' | 'pix_direto' | 'maquininha';
 }): Promise<{ success: boolean; pedidoId: string; error?: string }> {
-  const pedidoId = `adm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const pedidoId = crypto.randomUUID();
   const qtd = params.cotasNumeros.length;
   const valorTotal = calcularValorTotal(qtd);
   const now = new Date().toISOString();
@@ -274,7 +274,7 @@ export async function criarPedidoManualAdmin(params: {
     transaction_id_infinitepay: `MANUAL_${params.formaPagamento.toUpperCase()}`,
     cotas_numeros: params.cotasNumeros,
     created_at: now,
-    updated_at: now,
+    
   };
 
   const client = getSupabase();
@@ -290,7 +290,7 @@ export async function criarPedidoManualAdmin(params: {
         status_pagamento: 'pago',
         transaction_id_infinitepay: novoPedido.transaction_id_infinitepay,
         created_at: now,
-        updated_at: now,
+        
       });
 
       if (!errPed) {
@@ -299,7 +299,7 @@ export async function criarPedidoManualAdmin(params: {
           .update({
             status: 'pago',
             pedido_id: pedidoId,
-            updated_at: now,
+            
           })
           .in('numero', params.cotasNumeros);
       }
@@ -355,12 +355,12 @@ export async function verificarELiberarCotasExpiradas(): Promise<{ pedidosCancel
 
         await client
           .from('pedidos')
-          .update({ status_pagamento: 'cancelado', updated_at: new Date().toISOString() })
+          .update({ status_pagamento: 'cancelado' })
           .in('id', ids);
 
         const { data: cotasLiberadasDb } = await client
           .from('cotas')
-          .update({ status: 'disponivel', pedido_id: null, updated_at: new Date().toISOString() })
+          .update({ status: 'disponivel', pedido_id: null })
           .in('pedido_id', ids)
           .select('numero');
 

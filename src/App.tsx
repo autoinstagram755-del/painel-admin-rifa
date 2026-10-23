@@ -40,6 +40,8 @@ import {
   saveStoredSupabaseConfig,
   isSupabaseActive,
 } from './lib/supabase.ts';
+import { AuditLogsViewer } from './components/AuditLogsViewer.tsx';
+import { registrarLogAuditoria } from './lib/auditLogs.ts';
 import {
   TOTAL_COTAS,
   VALOR_UNITARIO_COTA,
@@ -68,7 +70,7 @@ export default function App() {
   const [lembrarAcesso, setLembrarAcesso] = useState(true);
 
   // Estados principais
-  const [abaAtiva, setAbaAtiva] = useState<'pedidos' | 'venda_manual' | 'whatsapp' | 'configuracoes'>('pedidos');
+  const [abaAtiva, setAbaAtiva] = useState<'pedidos' | 'venda_manual' | 'whatsapp' | 'logs_auditoria' | 'configuracoes'>('pedidos');
   const [cotas, setCotas] = useState<Cota[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -508,6 +510,18 @@ export default function App() {
           >
             <MessageSquare className="w-4 h-4" />
             <span>Central WhatsApp &amp; 3 Horas ({pedidosPendentes.length})</span>
+          </button>
+
+          <button
+            onClick={() => setAbaAtiva('logs_auditoria')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap ${
+              abaAtiva === 'logs_auditoria'
+                ? 'bg-amber-400 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Logs de Auditoria</span>
           </button>
 
           <button
@@ -1167,6 +1181,12 @@ export default function App() {
         )}
 
         {/* ABA 4: CONFIGURAÇÕES & SUPABASE */}
+        {abaAtiva === 'logs_auditoria' && (
+          <div className="space-y-4">
+            <AuditLogsViewer cotas={cotas} pedidos={pedidos} />
+          </div>
+        )}
+
         {abaAtiva === 'configuracoes' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Conexão com Supabase */}
