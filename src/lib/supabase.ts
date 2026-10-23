@@ -367,6 +367,13 @@ export async function verificarELiberarCotasExpiradas(): Promise<{ pedidosCancel
         if (cotasLiberadasDb) {
           cotasLiberadas += cotasLiberadasDb.length;
         }
+
+        // Limpeza de cotas com status 'reservado' que ficaram orfãs
+        await client
+          .from('cotas')
+          .update({ status: 'disponivel', pedido_id: null })
+          .eq('status', 'reservado')
+          .is('pedido_id', null);
       }
     } catch (e) {
       console.warn('Erro ao expirar reservas no Supabase:', e);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  X,
   LayoutDashboard,
   Database,
   Users,
@@ -82,9 +83,9 @@ export default function App() {
   const [manualWhatsapp, setManualWhatsapp] = useState('');
   const [manualCpf, setManualCpf] = useState('');
   const [manualFormaPagamento, setManualFormaPagamento] = useState<'dinheiro' | 'pix_direto' | 'maquininha'>('dinheiro');
-  const [manualQtd, setManualQtd] = useState(3);
-  const [manualModoEscolha, setManualModoEscolha] = useState<'combo' | 'especifico'>('combo');
-  const [manualNumerosTexto, setManualNumerosTexto] = useState('');
+  const [manualCotasSelecionadas, setManualCotasSelecionadas] = useState<number[]>([]);
+  const [manualBuscaCota, setManualBuscaCota] = useState('');
+  const [manualFaixaAtiva, setManualFaixaAtiva] = useState<'1-100' | '101-200' | '201-300' | '301-400' | '401-500' | 'todas'>('1-100');
   const [manualSalvando, setManualSalvando] = useState(false);
   const [manualErro, setManualErro] = useState<string | null>(null);
   const [manualSucesso, setManualSucesso] = useState<{
@@ -218,6 +219,33 @@ export default function App() {
     }
   };
 
+  const handleToggleManualCota = (numero: number) => {
+    const cota = cotas.find((c) => c.numero === numero);
+    if (!cota || cota.status !== 'disponivel') return;
+
+    setManualCotasSelecionadas((prev) =>
+      prev.includes(numero) ? prev.filter((n) => n !== numero) : [...prev, numero].sort((a, b) => a - b)
+    );
+    setManualErro(null);
+  };
+
+  const handleSelectComboManual = (quantidade: number) => {
+    const disponiveis = cotas.filter((c) => c.status === 'disponivel').map((c) => c.numero);
+    if (disponiveis.length < quantidade) {
+      setManualErro(`Apenas ${disponiveis.length} cotas disponíveis no momento.`);
+      return;
+    }
+    const embaralhadas = [...disponiveis].sort(() => 0.5 - Math.random());
+    const selecionadas = embaralhadas.slice(0, quantidade).sort((a, b) => a - b);
+    setManualCotasSelecionadas(selecionadas);
+    setManualErro(null);
+  };
+
+  const handleLimparManualCotas = () => {
+    setManualCotasSelecionadas([]);
+    setManualErro(null);
+  };
+
   const handleLancarVendaManual = async (e: React.FormEvent) => {
     e.preventDefault();
     setManualErro(null);
@@ -233,37 +261,22 @@ export default function App() {
       return;
     }
 
-    let selecionadas: number[] = [];
-
-    if (manualModoEscolha === 'combo') {
-      const livres = cotas.filter((c) => c.status === 'disponivel').map((c) => c.numero);
-      if (livres.length < manualQtd) {
-        setManualErro(`Não há ${manualQtd} cotas livres no momento. Restam apenas ${livres.length}.`);
-        return;
-      }
-      selecionadas = livres.slice(0, manualQtd);
-    } else {
-      const partes = manualNumerosTexto
-        .split(/[,;\s]+/)
-        .map((p) => parseInt(p.trim(), 10))
-        .filter((n) => !isNaN(n) && n >= 1 && n <= 500);
-
-      const unicos = Array.from(new Set(partes));
-      if (unicos.length === 0) {
-        setManualErro('Informe pelo menos um número de cota válido (entre 001 e 500).');
-        return;
-      }
-
-      const ocupadas = cotas.filter((c) => unicos.includes(c.numero) && c.status !== 'disponivel');
-      if (ocupadas.length > 0) {
-        const strOcupadas = ocupadas.map((c) => formatarNumeroCota(c.numero)).join(', ');
-        setManualErro(`As seguintes cotas já estão ocupadas: ${strOcupadas}. Escolha outras.`);
-        return;
-      }
-      selecionadas = unicos;
+    if (manualCotasSelecionadas.length === 0) {
+      setManualErro('Selecione pelo menos uma cota na tabela abaixo ou use os botões de Combo Promocional.');
+      return;
     }
 
+    // Verificar se alguma cota selecionada já foi ocupada
+    const ocupadas = cotas.filter((c) => manualCotasSelecionadas.includes(c.numero) && c.status !== 'disponivel');
+    if (ocupadas.length > 0) {
+      const strOcupadas = ocupadas.map((c) => '#' + formatarNumeroCota(c.numero)).join(', ');
+      setManualErro(`As seguintes cotas não estão disponíveis: ${strOcupadas}. Por favor desmarque-as.`);
+      return;
+    }
+
+    const selecionadas = [...manualCotasSelecionadas].sort((a, b) => a - b);
     setManualSalvando(true);
+
     try {
       const valorTotal = calcularValorTotal(selecionadas.length);
       const res = await criarPedidoManualAdmin({
@@ -285,7 +298,8 @@ export default function App() {
         setManualNome('');
         setManualWhatsapp('');
         setManualCpf('');
-        setManualNumerosTexto('');
+        setManualCotasSelecionadas([]);
+        setManualBuscaCota('');
         carregarDados();
       } else {
         setManualErro(res.error || 'Erro ao lançar pedido manual.');
@@ -830,89 +844,263 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Modo de Escolha das Cotas */}
-                <div className="pt-2 border-t border-slate-800 space-y-3">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Como deseja definir as cotas?
-                  </label>
-                  <div className="flex space-x-4 text-xs">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={manualModoEscolha === 'combo'}
-                        onChange={() => setManualModoEscolha('combo')}
-                        className="text-amber-500 focus:ring-amber-400"
-                      />
-                      <span>Por Quantidade / Combo Promocional</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={manualModoEscolha === 'especifico'}
-                        onChange={() => setManualModoEscolha('especifico')}
-                        className="text-amber-500 focus:ring-amber-400"
-                      />
-                      <span>Escolher Números Específicos</span>
-                    </label>
+                {/* 1. SELEÇÃO DE COMBOS PROMOCIONAIS */}
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-bold text-white uppercase tracking-wider">
+                        1. Combos Promocionais (Seleção Rápida)
+                      </label>
+                      <p className="text-[11px] text-slate-400">
+                        Clique em um combo para selecionar cotas livres automaticamente, ou monte sua própria escolha na tabela abaixo.
+                      </p>
+                    </div>
+                    {manualCotasSelecionadas.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleLimparManualCotas}
+                        className="text-xs text-rose-400 hover:text-rose-300 font-bold px-2.5 py-1 rounded-lg bg-rose-950/40 border border-rose-900/60 transition cursor-pointer"
+                      >
+                        Limpar Seleção
+                      </button>
+                    )}
                   </div>
 
-                  {manualModoEscolha === 'combo' ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    {[
+                      { qtd: 1, label: '1 Cota', sub: 'Individual', val: 20 },
+                      { qtd: 3, label: '3 Cotas', sub: 'Combo Missão (Economize R$ 10)', val: 50 },
+                      { qtd: 7, label: '7 Cotas', sub: 'Liderança (Economize R$ 40)', val: 100 },
+                      { qtd: 15, label: '15 Cotas', sub: 'Patrocinador (Economize R$ 100)', val: 200 },
+                    ].map((combo) => {
+                      const isMatch = manualCotasSelecionadas.length === combo.qtd;
+                      return (
+                        <button
+                          key={combo.qtd}
+                          type="button"
+                          onClick={() => handleSelectComboManual(combo.qtd)}
+                          className={`p-3 rounded-xl border text-left transition cursor-pointer active:scale-95 flex flex-col justify-between ${
+                            isMatch
+                              ? 'bg-amber-400/15 border-amber-400 text-amber-300 ring-2 ring-amber-400/50 shadow-md'
+                              : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          <div>
+                            <span className="block text-xs font-extrabold text-white">{combo.label}</span>
+                            <span className="block text-[10px] text-slate-400 leading-tight mt-0.5">{combo.sub}</span>
+                          </div>
+                          <span className="block text-sm font-black text-amber-400 mt-2 font-mono">
+                            {formatarMoeda(combo.val)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. TABELA INTERATIVA COM AS 500 COTAS */}
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2">
-                        {COMBOS_DISPONIVEIS.map((combo) => (
-                          <button
-                            key={combo.cotas}
-                            type="button"
-                            onClick={() => setManualQtd(combo.cotas)}
-                            className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
-                              manualQtd === combo.cotas
-                                ? 'bg-amber-400 text-slate-950 border-amber-300 font-bold'
-                                : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                            }`}
-                          >
-                            <div className="text-sm">{combo.cotas} {combo.cotas > 1 ? 'cotas' : 'cota'}</div>
-                            <div className="text-xs">{formatarMoeda(combo.valor)}</div>
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-2">
-                        O sistema selecionará automaticamente as primeiras cotas livres disponíveis.
+                      <span className="text-xs font-bold text-white uppercase tracking-wider block">
+                        2. Tabela Geral das 500 Cotas (Clique para Escolher)
+                      </span>
+                      <p className="text-[11px] text-slate-400">
+                        Cotas pagas e reservadas estão bloqueadas para evitar duplicidade de números.
                       </p>
                     </div>
-                  ) : (
-                    <div>
+
+                    {/* Busca Rápida de Cota */}
+                    <div className="relative min-w-[200px]">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
-                        value={manualNumerosTexto}
-                        onChange={(e) => setManualNumerosTexto(e.target.value)}
-                        placeholder="Ex: 007, 077, 150, 420"
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-amber-400 font-mono"
+                        value={manualBuscaCota}
+                        onChange={(e) => setManualBuscaCota(e.target.value)}
+                        placeholder="Buscar cota (ex: 206)..."
+                        className="w-full pl-8 pr-7 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
                       />
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Separe os números por vírgula ou espaço (ex: 7, 12, 100).
-                      </p>
+                      {manualBuscaCota && (
+                        <button
+                          type="button"
+                          onClick={() => setManualBuscaCota('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Centenas */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                    <span className="text-[11px] text-slate-400 mr-1 font-medium">Centenas:</span>
+                    {[
+                      { id: '1-100', label: '001 a 100' },
+                      { id: '101-200', label: '101 a 200' },
+                      { id: '201-300', label: '201 a 300' },
+                      { id: '301-400', label: '301 a 400' },
+                      { id: '401-500', label: '401 a 500' },
+                      { id: 'todas', label: 'Todas as 500' },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setManualFaixaAtiva(f.id as any)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                          manualFaixaAtiva === f.id
+                            ? 'bg-amber-400 text-slate-950 shadow-sm'
+                            : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Legenda de Status */}
+                  <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-400">
+                    <span className="flex items-center space-x-1">
+                      <span className="w-3 h-3 rounded bg-slate-900 border border-slate-700 inline-block" />
+                      <span>Livre</span>
+                    </span>
+                    <span className="flex items-center space-x-1 text-amber-300 font-bold">
+                      <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+                      <span>Selecionada ({manualCotasSelecionadas.length})</span>
+                    </span>
+                    <span className="flex items-center space-x-1 text-amber-500">
+                      <span className="w-3 h-3 rounded bg-amber-950 border border-amber-800 inline-block" />
+                      <span>Reservada (Bloqueada)</span>
+                    </span>
+                    <span className="flex items-center space-x-1 text-slate-500">
+                      <span className="w-3 h-3 rounded bg-slate-950 border border-slate-900 inline-block" />
+                      <span>Já Paga (Bloqueada)</span>
+                    </span>
+                  </div>
+
+                  {/* Grade das Cotas */}
+                  <div className="pt-2 max-h-60 overflow-y-auto p-2 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                    {(() => {
+                      const cotasFiltradas = cotas.filter((c) => {
+                        if (manualFaixaAtiva === '1-100' && (c.numero < 1 || c.numero > 100)) return false;
+                        if (manualFaixaAtiva === '101-200' && (c.numero < 101 || c.numero > 200)) return false;
+                        if (manualFaixaAtiva === '201-300' && (c.numero < 201 || c.numero > 300)) return false;
+                        if (manualFaixaAtiva === '301-400' && (c.numero < 301 || c.numero > 400)) return false;
+                        if (manualFaixaAtiva === '401-500' && (c.numero < 401 || c.numero > 500)) return false;
+                        if (manualBuscaCota.trim()) {
+                          const termo = manualBuscaCota.trim();
+                          const numFmt = formatarNumeroCota(c.numero);
+                          return numFmt.includes(termo) || String(c.numero).includes(termo);
+                        }
+                        return true;
+                      });
+
+                      if (cotasFiltradas.length === 0) {
+                        return (
+                          <div className="py-8 text-center text-xs text-slate-400">
+                            Nenhuma cota encontrada para este filtro.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-20 gap-1.5">
+                          {cotasFiltradas.map((c) => {
+                            const isSelected = manualCotasSelecionadas.includes(c.numero);
+                            const isPago = c.status === 'pago';
+                            const isReservado = c.status === 'reservado';
+                            const isDisponivel = c.status === 'disponivel';
+
+                            let classe = 'bg-slate-900 text-slate-200 border-slate-800 hover:border-emerald-400 hover:text-white';
+                            if (isSelected) {
+                              classe = 'bg-amber-400 text-slate-950 font-black border-amber-300 ring-2 ring-amber-400 scale-105 shadow-md';
+                            } else if (isPago) {
+                              classe = 'bg-slate-950 text-slate-600 border-slate-900 cursor-not-allowed opacity-40 line-through';
+                            } else if (isReservado) {
+                              classe = 'bg-amber-950/40 text-amber-600 border-amber-900/50 cursor-not-allowed opacity-60';
+                            }
+
+                            return (
+                              <button
+                                key={c.numero}
+                                type="button"
+                                disabled={!isDisponivel}
+                                onClick={() => isDisponivel && handleToggleManualCota(c.numero)}
+                                title={
+                                  isSelected
+                                    ? `Cota #${formatarNumeroCota(c.numero)}: Selecionada para esta venda`
+                                    : isPago
+                                    ? `Cota #${formatarNumeroCota(c.numero)}: Já PAGA (Bloqueada)`
+                                    : isReservado
+                                    ? `Cota #${formatarNumeroCota(c.numero)}: Reservada (Bloqueada)`
+                                    : `Cota #${formatarNumeroCota(c.numero)}: Livre (Clique para selecionar)`
+                                }
+                                className={`h-9 rounded-lg text-xs font-mono font-bold flex items-center justify-center border transition-all cursor-pointer ${classe}`}
+                              >
+                                {formatarNumeroCota(c.numero)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Resumo Dinâmico das Cotas Selecionadas e Valor */}
+                  <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-bold text-white">
+                          Cotas Selecionadas ({manualCotasSelecionadas.length}):
+                        </span>
+                        {manualCotasSelecionadas.length === 0 && (
+                          <span className="text-xs text-amber-400/90 italic">
+                            Nenhuma cota selecionada ainda.
+                          </span>
+                        )}
+                      </div>
+                      {manualCotasSelecionadas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto">
+                          {manualCotasSelecionadas.map((num) => (
+                            <span
+                              key={num}
+                              className="px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-mono font-bold flex items-center space-x-1"
+                            >
+                              <span>#{formatarNumeroCota(num)}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleManualCota(num)}
+                                className="text-amber-400 hover:text-white ml-0.5 p-0.5"
+                                title="Remover cota"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right shrink-0 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                      <span className="text-[11px] text-slate-400 block font-medium">Valor Total a Cobrar:</span>
+                      <span className="text-xl font-black text-emerald-400 font-mono">
+                        {formatarMoeda(calcularValorTotal(manualCotasSelecionadas.length))}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex items-center justify-between border-t border-slate-800">
                   <div className="text-xs text-slate-400">
-                    Valor a ser registrado:{' '}
-                    <span className="text-base font-bold text-emerald-400">
-                      {formatarMoeda(
-                        calcularValorTotal(
-                          manualModoEscolha === 'combo'
-                            ? manualQtd
-                            : manualNumerosTexto.split(/[,;\s]+/).filter((x) => x.trim().length > 0).length
-                        )
-                      )}
+                    Cotas a registrar:{' '}
+                    <span className="text-sm font-bold text-amber-300">
+                      {manualCotasSelecionadas.length} cota(s)
                     </span>
                   </div>
-
                   <button
                     type="submit"
-                    disabled={manualSalvando}
-                    className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-bold text-xs sm:text-sm transition shadow-md shadow-amber-400/20 cursor-pointer flex items-center space-x-2"
+                    disabled={manualSalvando || manualCotasSelecionadas.length === 0}
+                    className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 rounded-xl font-bold text-xs sm:text-sm transition shadow-md shadow-amber-400/20 cursor-pointer flex items-center space-x-2"
                   >
                     <CheckCircle className="w-4 h-4" />
                     <span>{manualSalvando ? 'Gravando...' : 'Confirmar Venda Balcão'}</span>
