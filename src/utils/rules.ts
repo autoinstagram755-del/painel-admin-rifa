@@ -1,3 +1,4 @@
+export const VALOR_UNITARIO_COTA = 20;
 /**
  * Regras de negócio, cálculos de cotas e validações para a Ação Solidária
  */

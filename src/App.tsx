@@ -490,17 +490,6 @@ export default function App() {
 
         {/* Navegação por Abas */}
         <div className="flex border-b border-slate-800 space-x-1 sm:space-x-3 overflow-x-auto pb-1">
-          <button
-            onClick={() => setAbaAtiva('pedidos')}
-            className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap ${
-              abaAtiva === 'pedidos'
-                ? 'bg-amber-400 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            <Receipt className="w-4 h-4" />
-            <span>Gestão de Pedidos ({pedidos.length})</span>
-          </button>
 
           <button
             onClick={() => setAbaAtiva('venda_manual')}
@@ -511,7 +500,18 @@ export default function App() {
             }`}
           >
             <Banknote className="w-4 h-4" />
-            <span>Venda Balcão / Manual</span>
+            <span>Venda Balcão (500 Cotas & Combos)</span>
+          </button>
+          <button
+            onClick={() => setAbaAtiva('pedidos')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap ${
+              abaAtiva === 'pedidos'
+                ? 'bg-amber-400 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            <span>Gestão de Pedidos ({pedidos.length})</span>
           </button>
 
           <button
@@ -1371,7 +1371,7 @@ export default function App() {
         {/* ABA 4: CONFIGURAÇÕES & SUPABASE */}
         {abaAtiva === 'logs_auditoria' && (
           <div className="space-y-4">
-            <AuditLogsViewer cotas={cotas} pedidos={pedidos} />
+            <AuditLogsViewer onRefreshData={carregarDados} />
           </div>
         )}
 
