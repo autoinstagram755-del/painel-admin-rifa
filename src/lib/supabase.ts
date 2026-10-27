@@ -29,9 +29,12 @@ const LOCAL_STORAGE_COTAS_KEY = 'acao_solidaria_cotas_v1';
 const LOCAL_STORAGE_PEDIDOS_KEY = 'acao_solidaria_pedidos_v1';
 const LOCAL_STORAGE_SUPABASE_CONFIG = 'acao_solidaria_admin_supabase_cfg';
 
+const DEFAULT_SUPABASE_URL = 'https://tnnrppcrcakipkmfedmm.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_57UbZEeDu8lqMnhj90eghQ_TL7W0Yoo';
+
 export function getStoredSupabaseConfig(): { url: string; anonKey: string } {
-  const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const envUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
   try {
     const custom = localStorage.getItem(LOCAL_STORAGE_SUPABASE_CONFIG);
